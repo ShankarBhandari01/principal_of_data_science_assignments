@@ -1,8 +1,12 @@
 # List of required libraries
-required_packages <- c("tidyverse", "GGally", "ggfortify", "cluster","ggpubr","ggplot2","ggcorrplot","car")
+required_packages <- c("tidyverse", "GGally", "ggfortify" ,"ggplot2","ggcorrplot","car","olsrr")
 # Load all libraries
 lapply(required_packages, library, character.only = TRUE)
+#import datasets
 data <- read_csv('dataset/index_of_economic_freedom_2024.csv')
+
+#dimension of data
+dim(data)
 
 glimpse(data)
 
@@ -17,7 +21,7 @@ colnames(data)
 
 summary(data)
 # total na value for columnwise
-colSums(is.na(data))
+sum(is.na(data))
 
 # check the data type of columns
 str(data)
@@ -59,14 +63,6 @@ str(data)
 # Investment_Freedom: num
 # Financial_Freedom: num
 
-
-# Replace NA values with column mean for numeric columns
-data[] <- sapply(data, function(x) if(is.numeric(x)) {
-  x[is.na(x)] <- mean(x, na.rm = TRUE)  # Replace NA with mean
-  return(x)
-} else {
-  return(x)  # Non-numeric columns remain unchanged
-})
 # now, check if any NA values are left
 sum(is.na(data))
  # [1] 0
@@ -150,7 +146,7 @@ print(region)
 
 
 
-visualise_by_country <- function(df, country) {
+visualise_by_region <- function(df, country) {
   ggplot(df, aes(x = as.numeric(Overall_Score), y = reorder(Country, as.numeric(Overall_Score)))) + 
     labs(
       title = paste("Overall Score by Country in", country),
@@ -176,8 +172,8 @@ visualise_by_country(europ,"Europe")
 visualise_by_country(asia_pacific, "Asia-Pacific")
 
 #1  scatter matrix 
-# get rid of "Cuba", "North Korea" 
-data = filter(data,!(Country %in% c("Cuba", "North Korea")))
+# get rid of "Cuba", "North Korea" ,"Venezuela"
+data = filter(data,!(Country %in% c("Cuba", "North Korea","Venezuela")))
 # getting rid  of categorical variable 
 # Select only the 12 pillar variables
 pillar_columns <- c("Overall_Score","Property_Rights", "Government_Integrity", "Judicial_Effectiveness", 
@@ -191,11 +187,11 @@ pillar_data <- data[,pillar_columns]
 
 # scatter matrix
 ggpairs(pillar_data) +
-  ggtitle("scatter matrix") 
+  ggtitle("scatter matrix between 12 pillars variables") 
 
 # hypothesis testing between overal score and property rights
 cor.test(pillar_data$Overall_Score,pillar_data$Property_Rights)
-#  single-predictor linear model would “best” predict overall
+# single-predictor linear model would “best” predict overall
 single_model <- lm(Overall_Score~Property_Rights,data = pillar_data)
 # summary of linear single predictor model 
 summary(single_model)
@@ -214,75 +210,26 @@ ggplot(pillar_data, aes(y=Overall_Score, x=Property_Rights)) +
 # Model #1: The linear model using only government spending and labor freedom as
  #predictors.
 model1 = lm(Overall_Score~Government_Spending+Labor_Freedom,data = pillar_data)
-# cor between Judicial_Effectiveness and Business_Freedom
-cor.test(pillar_data$Judicial_Effectiveness,pillar_data$Business_Freedom)
-
-summary(model1)
-
-autoplot(model1,data = pillar_data)
-
-ggplot(pillar_data, aes(y=Overall_Score, x=Government_Spending+Labor_Freedom)) +
-  geom_point()+ggtitle("Fitted line betweeen overall score and Government_Spending+Labor_Freedom") +
-  geom_smooth(method=lm, se=TRUE) +
-  ylab("Overall Score") +
-  xlab("Government Spending + Labor Freedom")
-
 
 # Model #2: The best two-predictor model using any of the 12 pillar variables.
 
 model2 = lm(Overall_Score~Judicial_Effectiveness+Business_Freedom,data = pillar_data)
-summary(model2)
-#Variance Inflation Factor Interpretation
-vif(model2) 
 
-autoplot(model2)
+autoplot(model2,data = pillar_data)
 
 
 # Model #3: The best four-predictor model using any of the 12 pillar variables.
 model3 = lm(Overall_Score~Trade_Freedom+Investment_Freedom+Property_Rights+Government_Spending,data = pillar_data)
-summary(model3)
+
 autoplot(model3,data = pillar_data)
-
-ggplot(pillar_data, aes(y=Overall_Score, x=Trade_Freedom+Investment_Freedom+Property_Rights+Government_Spending)) +
-  geom_point()+ggtitle("Fitted line betweeen overall score and Trade_Freedom+Investment_Freedom+Property_Rights+Government_Spending") +
-  geom_smooth(method=lm, se=TRUE) +
-  ylab("Overall Score") +
-  xlab("Trade_Freedom+Investment_Freedom+Property_Rights+Government_Spending")
-
-# Model #4: The best linear model using any subset of variables from Pillar #1 and Pillar #2 only
-
-pillar1_pillar2 = select(pillar_data, Property_Rights:Fiscal_Health)
-
-glimpse(pillar1_pillar2)
-
-ggpairs(pillar1_pillar2) +
-  ggtitle("scatter matrix") 
-
 # Start with a full model using all variables from Pillars #1 and #2
-full_model <- lm(Overall_Score ~ Property_Rights + Government_Integrity + Judicial_Effectiveness + 
-                   Tax_Burden + Government_Spending + Fiscal_Health, data = pillar_data)
+model4 <- lm(Overall_Score ~ Property_Rights + Government_Integrity + Judicial_Effectiveness + 
+                 Government_Spending, data = pillar_data)
 
-# Perform stepwise regression (both directions)
-model4 <- step(full_model, direction = "both", trace = 0)
-
-summary(model4)
-
-
-
-ggplot(pillar_data, aes(y=Overall_Score, x=Property_Rights + Government_Integrity + Judicial_Effectiveness + 
-                          Tax_Burden + Government_Spending + Fiscal_Health)) +
-geom_point()+ggtitle("Fitted line betweeen overall score and
-                       Property_Rights + Government_Integrity + Judicial_Effectiveness + 
-                   Tax_Burden + Government_Spending + Fiscal_Health") +
-geom_smooth(method=lm, se=TRUE) +
-ylab("Overall Score") +
-xlab("Property_Rights + Government_Integrity + Judicial_Effectiveness + 
-                   Tax_Burden + Government_Spending + Fiscal_Health")
-
+# Perform stepwise regression to find the best model (both directions, considering AIC)
+model4 <- step(model4, direction = "both", trace = 0)
 
 #model 5
-
-
 # Create a dataset with the region and selected variables from each pillar
 model_data <- data[, c("Region", "Overall_Score","Property_Rights", "Government_Integrity", "Judicial_Effectiveness", 
                        "Tax_Burden", "Government_Spending", "Fiscal_Health", 
@@ -297,26 +244,9 @@ full_model <- lm(Overall_Score ~ Region +Government_Integrity + Judicial_Effecti
 # Perform stepwise regression to find the best model (both directions, considering AIC)
 model5 <- step(full_model, direction = "both", trace = 0)
 
-# Summary of the best model
 summary(model5)
 
-vif(model5)
-autoplot(best_model,data = model_data)
-
-
-ggplot(pillar_data, aes(y=Overall_Score, x= Government_Integrity + Judicial_Effectiveness + Business_Freedom + 
-                          Government_Spending + Labor_Freedom + Tax_Burden + 
-                          Financial_Freedom + Monetary_Freedom + Trade_Freedom + Investment_Freedom)) +
-  geom_point()+ggtitle("Fitted line betweeen overall score and
-                       Property_Rights + Government_Integrity + Judicial_Effectiveness + 
-                   Tax_Burden + Government_Spending + Fiscal_Health") +
-      geom_smooth(method=lm, se=TRUE) +
-  ylab("Overall Score") +
-  xlab("Property_Rights + Government_Integrity + Judicial_Effectiveness + 
-                   Tax_Burden + Government_Spending + Fiscal_Health")
-
-
-
+autoplot(model5,data = model_data)
 #AIC
 AIC(model1, model2, model3,model4,model5)
 # c Comparison 
